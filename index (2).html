@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CPU Cache Simulator</title>
+<style>
+:root{
+ --bg:#ffffff;--green:#edf8ef;--green2:#dcefe0;--green3:#2e6b40;
+ --ink:#1f2922;--muted:#68736b;--line:#cfd9d1;--blue:#2f6fdb;--bluebg:#eef4ff;
+ --yellow:#a66d00;--yellowbg:#fff5d9;--red:#c23c3c;--redbg:#fff0f0;
+ --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+ --sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+ --r:5px
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 var(--sans)}
+button,input,select{font:inherit}button{cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.app{max-width:1450px;margin:auto;padding:18px 20px 28px}
+header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:11px}
+h1{font-size:18px;margin:0;letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:12px;margin-top:3px}
+.actions{display:flex;gap:6px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:var(--r);padding:6px 10px;color:var(--ink)}
+.btn:hover{background:#f7faf7;border-color:#aebcb1}
+.btn.primary{background:var(--green3);border-color:var(--green3);color:#fff}
+.btn.primary:hover{background:#245932}
+.topline{display:flex;justify-content:space-between;gap:15px;align-items:center;padding:11px 0 12px}
+.topline p{margin:0;color:#404a42}
+.note{font-size:10px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:285px 1fr;gap:12px;align-items:start}
+.panel{border:1px solid var(--line);background:#fff;border-radius:var(--r)}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--line)}
+.ph h2{margin:0;font:650 10px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:#526057}
+.pb{padding:11px}
+.controls{display:grid;gap:10px}
+.field{display:grid;gap:5px}
+label{font-size:11px;color:var(--muted)}
+input,select{width:100%;height:34px;border:1px solid var(--line);border-radius:4px;background:#fff;padding:6px 8px;color:var(--ink)}
+.err{font-size:10px;min-height:14px;color:var(--red)}
+.seg{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.seg button{padding:6px 2px;border:0;border-right:1px solid var(--line);background:#fff;color:var(--muted);font-size:10px}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--green2);color:var(--green3);font-weight:650}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.divider{border-top:1px solid var(--line);padding-top:10px}
+.small{font:650 9px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#8a948d;margin-bottom:5px}
+.readouts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.readouts div{background:var(--green);border:1px solid var(--green2);border-radius:4px;padding:6px}
+.readouts span{display:block}.k{font-size:8px;text-transform:uppercase;color:#829087}.v{font:11px var(--mono);margin-top:2px}
+.presets{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.preset{border:1px solid var(--line);background:#fff;text-align:left;border-radius:4px;padding:6px 7px;font-size:10px;color:var(--muted)}
+.preset:hover{color:var(--ink);border-color:#aebcb1;background:#f8faf8}.preset:disabled{opacity:.42;cursor:not-allowed;background:#fafcfb}
+.seq{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.visual{display:grid;gap:12px}
+.work{display:grid;grid-template-columns:minmax(0,1.45fr) 310px;gap:12px}
+.stage{border:1px solid var(--line);border-radius:var(--r);background:#fff;overflow:hidden}
+.stage-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.stage-head strong{font-size:13px}.status{font:10px var(--mono);padding:3px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.status.hit{color:var(--blue);background:var(--bluebg);border-color:#9bb8ee}.status.miss{color:var(--yellow);background:var(--yellowbg);border-color:#e2c26e}
+.path{display:grid;grid-template-columns:75px 1fr 90px;gap:9px;align-items:center;padding:12px}
+.node{border:1px solid var(--line);border-radius:4px;background:var(--green);min-height:70px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:8px}
+.node strong{font-size:11px}.node span{font-size:9px;color:var(--muted);margin-top:2px}
+.node.physical-active,.cachebox.physical-active{border-color:var(--blue);background:var(--bluebg)}
+.node.physical-miss,.cachebox.physical-miss{border-color:#d8b34d;background:var(--yellowbg)}
+.node.physical-evict,.cachebox.physical-evict{border-color:#df9494;background:var(--redbg)}
+.node.physical-hit{border-color:#86a9e7;background:var(--bluebg)}
+.cachebox{transition:background-color 120ms ease,border-color 120ms ease}
+.node{transition:background-color 120ms ease,border-color 120ms ease}
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.step{min-height:48px;border:1px solid var(--line);border-radius:4px;padding:6px;background:#fff}
+.step.active{border-color:var(--blue);background:var(--bluebg)}
+.step.done{border-color:#aebcb1;background:#f6faf7}
+.step.result-hit{border-color:#86a9e7;background:var(--bluebg)}
+.step.result-miss{border-color:#d8b34d;background:var(--yellowbg)}
+.step.result-evict{border-color:#df9494;background:var(--redbg)}
+.step.skip{opacity:.46}
+.step.current strong{color:var(--ink)}
+.step b{font:9px var(--mono);color:#879189}
+.step strong{display:block;font-size:9px;margin-top:1px}
+.step span{display:block;font-size:8px;color:var(--muted);margin-top:1px;line-height:1.15}
+@media(max-width:760px){.steps{grid-template-columns:1fr 1fr}}
+
+.arrow{text-align:center;color:#9aa39c;font:18px var(--mono)}
+.cachebox{border:1px solid var(--green2);border-radius:4px;background:var(--green);padding:8px}
+.cachetop{display:flex;justify-content:space-between;gap:7px;margin-bottom:6px}.cachetop strong{font-size:11px}.cachetop span{font:9px var(--mono);color:#7f8b83}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:4px;background:#fff}
+table{border-collapse:collapse;width:100%;font:10px var(--mono);min-width:560px}
+th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top}
+th{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#8a948d;background:#f7faf7}
+tr:last-child td{border-bottom:0}
+tr.focus td{background:var(--bluebg)}
+.linebtn{width:100%;text-align:left;border:1px solid var(--line);border-radius:4px;background:#fff;padding:5px;color:var(--ink)}
+.linebtn:hover{border-color:#9aa9a0}.linebtn.sel,.linebtn.match{border-color:var(--blue);background:var(--bluebg)}
+.linebtn.miss{border-color:#d8b34d;background:var(--yellowbg)}.linebtn.evict{border-color:#df9494;background:var(--redbg)}
+.line-top{display:flex;justify-content:space-between}.data{margin-top:2px;color:#4f5a52;font-size:9px}.invalid{color:#96a097}
+.decoder{margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+.decbar{display:grid;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.dec{padding:7px 8px}.tag{background:var(--green2)}.idx{background:var(--bluebg)}.off{background:var(--yellowbg)}
+.dec strong{display:block;font:9px var(--mono);letter-spacing:.06em}.dec span{display:block;font:11px var(--mono);margin-top:2px}
+.meta{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:5px}.meta div{border:1px solid var(--line);border-radius:4px;padding:5px}.meta .v{word-break:break-all}
+.decision{display:grid;gap:9px}.steps{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.step{border:1px solid var(--line);border-radius:4px;padding:7px;background:#fff}.step.active{border-color:var(--blue);background:var(--bluebg)}.step.miss{border-color:#d8b34d;background:var(--yellowbg)}.step.evicted{border-color:#df9494;background:var(--redbg)}
+.step b{font:9px var(--mono);color:#879189}.step strong{display:block;font-size:10px;margin-top:1px}
+.transfer{border:1px dashed #aebcb1;border-radius:4px;padding:8px;background:#fbfdfb}.transfer strong{font:11px var(--mono)}.transfer p{margin:3px 0 0;color:var(--muted);font-size:10px}
+.kv{display:grid;grid-template-columns:80px 1fr;gap:4px 8px;margin-top:8px;font-size:9px}.kv .key{color:#8a948d}.kv .val{font:10px var(--mono);word-break:break-word}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:0 12px 12px}
+.stat{border-top:2px solid var(--line);padding:6px;background:#fff}.stat b{display:block;font:650 16px var(--mono)}.stat span{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#8a948d}
+.stat.hit{border-color:var(--blue)}.stat.miss{border-color:var(--yellow)}.stat.evict{border-color:var(--red)}
+.history .pb{padding-top:9px}.log{max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:4px}
+.logrow{display:grid;grid-template-columns:36px 80px 55px 1fr 80px;gap:7px;padding:6px 7px;border-bottom:1px solid #e7ece8;align-items:center;font:9px var(--mono);background:#fff;text-align:left;width:100%;border-left:0;border-right:0;border-top:0}
+.logrow:last-child{border-bottom:0}.logrow:hover{background:#f7faf7}
+.badge{font:8px var(--mono);padding:2px 4px;border-radius:3px;text-align:center}.b-hit{color:var(--blue);background:var(--bluebg)}.b-miss{color:var(--yellow);background:var(--yellowbg)}
+.foot{font-size:9px;color:#8a948d;border-top:1px solid var(--line);padding-top:8px;margin-top:10px}
+.modalwrap{position:fixed;inset:0;background:rgba(30,44,34,.25);display:none;align-items:center;justify-content:center;padding:20px}.modalwrap.show{display:flex}.modal{width:min(630px,100%);background:#fff;border:1px solid var(--line-strong);border-radius:6px}.modal .pb{display:grid;gap:8px}.modal p{font-size:11px;color:var(--muted);margin:0}
+@media(max-width:1120px){.grid{grid-template-columns:250px 1fr}.work{grid-template-columns:1fr}}
+@media(max-width:760px){.app{padding:14px}.grid{grid-template-columns:1fr}.path{grid-template-columns:1fr}.arrow{transform:rotate(90deg);min-height:22px}.stats{grid-template-columns:repeat(2,1fr)}.meta{grid-template-columns:1fr 1fr}.logrow{grid-template-columns:30px 68px 50px 1fr 65px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div><h1>CPU Cache Simulator</h1><div class="sub">Explore how memory reads interact with a cache.</div></div>
+  <div class="actions"><button class="btn" id="reset">Reset</button><button class="btn" id="about">About</button></div>
+</header>
+<div class="topline"><p>Request an address. Decode it. Watch the cache decide.</p><span class="note">Simulation parameters only — not a specific commercial CPU.</span></div>
+
+<div class="grid">
+<aside class="panel">
+<div class="ph"><h2>Simulation</h2><span class="note">parameters</span></div>
+<div class="pb controls">
+  <div class="field"><label for="addrBits">Address size</label><select id="addrBits"><option>12</option><option selected>16</option><option>20</option><option>24</option></select></div>
+  <div class="row2">
+    <div class="field"><label for="cacheSize">Cache size (B)</label><input id="cacheSize" type="number" value="256" min="1"></div>
+    <div class="field"><label for="lineSize">Line size (B)</label><input id="lineSize" type="number" value="16" min="1"></div>
+  </div>
+  <div class="field"><label>Associativity</label><div class="seg" id="assoc">
+    <button type="button" data-a="1" aria-pressed="false">1-way</button><button type="button" data-a="2" aria-pressed="true">2-way</button><button type="button" data-a="4" aria-pressed="false">4-way</button><button type="button" data-a="8" aria-pressed="false">8-way</button><button type="button" data-a="fa" aria-pressed="false">Full</button>
+  </div></div>
+  <div class="field"><label for="policy">Replacement policy</label><select id="policy"><option value="lru">LRU</option><option value="fifo">FIFO</option><option value="random">Random</option></select></div>
+
+  <div class="divider"><div class="small">Derived geometry</div><div class="readouts">
+    <div><span class="k">Lines</span><span class="v" id="lines"></span></div><div><span class="k">Sets</span><span class="v" id="sets"></span></div>
+    <div><span class="k">Offset bits</span><span class="v" id="obits"></span></div><div><span class="k">Index bits</span><span class="v" id="ibits"></span></div>
+    <div><span class="k">Tag bits</span><span class="v" id="tbits"></span></div><div><span class="k">Ways</span><span class="v" id="ways"></span></div>
+  </div><div class="err" id="cfgErr" aria-live="polite"></div></div>
+
+  <div class="divider"><div class="small">Memory read</div>
+    <div class="field"><label for="addr">Address</label><input id="addr" value="0x1000" aria-describedby="addrErr" aria-invalid="false"></div>
+    <div class="help note">Read access only · hex (0x1000) or decimal (4096).</div><div class="err" id="addrErr" aria-live="polite"></div>
+    <button class="btn primary" id="access">Access Memory</button>
+  </div>
+
+  <div class="divider"><div class="small">Access patterns</div><div class="presets">
+    <button class="preset" data-p="spatial">Spatial locality</button>
+    <button class="preset" data-p="temporal">Temporal locality</button>
+    <button class="preset" data-p="stride">Stride 16 B</button>
+    <button class="preset" data-p="conflict">Conflict miss</button>
+    <button class="preset" data-p="capacity">Capacity miss</button>
+  </div><div class="note" id="presetNote" style="margin-top:6px">Load a sequence, then Step or Run.</div></div>
+
+  <div class="divider"><div class="small">Sequence</div><div class="seq"><button class="btn" id="step" disabled>Step</button><button class="btn" id="run" disabled>Run</button></div></div>
+</div>
+</aside>
+
+<main class="visual">
+<div class="work">
+<section class="stage">
+  <div class="stage-head"><strong id="headline">Ready</strong><span class="status" id="status" role="status" aria-live="polite">IDLE</span></div>
+  <div class="path">
+    <div class="node" id="cpuNode"><strong>CPU</strong><span>request</span></div>
+    <div>
+      <div class="cachebox" id="cacheNode"><div class="cachetop"><strong>Cache</strong><span id="geo"></span></div><div class="tablewrap" id="cache"></div></div>
+      <div class="decoder"><div class="small">Address decoder</div><div class="decbar" id="decbar"></div><div class="meta" id="meta"></div></div>
+    </div>
+    <div class="node" id="memoryNode"><strong>Main Memory</strong><span>backing store</span></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><b id="sa">0</b><span>Accesses</span></div><div class="stat hit"><b id="sh">0</b><span>Hits</span></div>
+    <div class="stat miss"><b id="sm">0</b><span>Misses</span></div><div class="stat hit"><b id="sr">0%</b><span>Hit rate</span></div>
+    <div class="stat evict"><b id="se">0</b><span>Evictions</span></div>
+  </div>
+</section>
+
+<aside class="panel">
+  <div class="ph"><h2>Access decision</h2><span class="note" id="count">idle</span></div>
+  <div class="pb decision">
+    <div><strong id="dtitle">Waiting for an address</strong><div class="note" id="dcopy">The simulator selects the set, compares tags, then returns data or fills a cache line.</div></div>
+    <div class="steps" id="steps" aria-label="Current access stages"></div>
+    <div class="transfer"><div class="small">Current transfer</div><strong id="transfer">CPU → Cache</strong><p id="transferNote">No access yet.</p><div class="kv" id="kv"></div></div>
+    <div class="divider"><strong style="font-size:11px">Selected cache line</strong><div class="note" id="lineCopy">Click a line to inspect it.</div><div class="kv" id="lineKV"></div></div>
+  </div>
+</aside>
+</div>
+
+<section class="panel history">
+<div class="ph"><h2>Access history</h2><span class="note" id="histCount">0 accesses</span></div>
+<div class="pb"><div class="log" id="log"></div><div class="foot">All statistics and cache contents are calculated from simulator state. Random replacement uses a deterministic seed.</div></div>
+</section>
+
+<div class="foot">Teaching model, not a cycle-accurate CPU. Real processors may add prefetching, coherence, speculation, write buffers, MSHRs, and hardware-specific replacement behavior.</div>
+</main>
+</div>
+</div>
+
+<div class="modalwrap" id="modal"><div class="modal"><div class="ph"><h2>About</h2><button class="btn" id="close">Close</button></div><div class="pb"><p>This simulator calculates tag/index/offset from the active configuration and updates an actual simulated cache state.</p><p>It deliberately does not pretend to reproduce the timing or microarchitecture of a particular production CPU.</p></div></div></div>
+
+<script>
+(()=>{"use strict";
+const $=id=>document.getElementById(id);
+
+const S={
+ cfg:{addrBits:16,cacheSize:256,lineSize:16,assoc:2,policy:"lru"},
+ cache:[],history:[],queue:[],qpos:0,selected:null,line:null,seed:1337,timer:null,running:false,
+ pending:null,lastCompleted:null
+};
+
+const presets={
+ spatial:()=>{const max=2**S.cfg.addrBits,base=Math.floor(Math.min(0x1000,max-S.cfg.lineSize)/S.cfg.lineSize)*S.cfg.lineSize;
+   return [0,4,8,12,16,20].map(x=>base+x).filter(x=>x<max)},
+ temporal:()=>{const max=2**S.cfg.addrBits,gap=Math.max(S.cfg.lineSize,S.cfg.lineSize*2);
+   return [0,gap,0,3*gap,0,0].filter(x=>x<max)},
+ stride:()=>{const max=2**S.cfg.addrBits,count=Math.min(12,Math.floor((max-1)/16)+1);
+   return Array.from({length:count},(_,i)=>i*16)},
+ conflict:()=>{const g=geom(),base=0,span=g.sets*g.lineSize,n=g.ways+1;
+   return Array.from({length:n},(_,i)=>base+i*span).concat(base).filter(x=>x<2**S.cfg.addrBits)},
+ capacity:()=>{const g=geom(),n=g.lines+1;
+   return Array.from({length:n*2},(_,i)=>(i%n)*S.cfg.lineSize)}
+};
+
+function pow2(n){return Number.isSafeInteger(n)&&n>0&&Number.isInteger(Math.log2(n))}
+function configError(){
+ const c=S.cfg,space=2**c.addrBits,lines=c.cacheSize/c.lineSize;
+ let msg="";
+ if(!pow2(c.cacheSize)||c.cacheSize<1)msg="Cache size must be a power of two.";
+ else if(!pow2(c.lineSize)||c.lineSize>c.cacheSize)msg="Line size must be a power of two and no larger than the cache.";
+ else if(c.cacheSize%c.lineSize)msg="Cache must contain a whole number of lines.";
+ else if(c.cacheSize>space||c.lineSize>space)msg="Cache geometry cannot exceed the configured address space.";
+ else if(lines>512)msg="Cache is too large for this visual simulator (maximum 512 lines).";
+ else if(c.assoc!=="fa"&&lines%c.assoc)msg="Associativity must divide the number of lines.";
+ else {const g=geomRaw();if(g.tagBits<0||!Number.isInteger(g.indexBits)||!Number.isInteger(g.offsetBits))msg="These parameters do not form a valid cache geometry."}
+ $("cfgErr").textContent=msg;
+ return msg;
+}
+function geomRaw(){
+ const c=S.cfg,lines=c.cacheSize/c.lineSize,sets=c.assoc==="fa"?1:lines/c.assoc;
+ return {lines,sets,offsetBits:Math.log2(c.lineSize),indexBits:Math.log2(sets),
+   tagBits:c.addrBits-Math.log2(sets)-Math.log2(c.lineSize),ways:c.assoc==="fa"?lines:c.assoc};
+}
+function geom(){return configError()?null:geomRaw()}
+function blankCache(){
+ const g=geomRaw();
+ S.cache=Array.from({length:g.sets},()=>Array.from({length:g.ways},(_,way)=>({
+   valid:false,tag:null,block:null,data:"",age:0,inserted:0,way
+ })));
+}
+function clearSim(resetQueue=true){
+ stop();
+ if(geom())blankCache();else S.cache=[];
+ S.history=[];S.selected=null;S.line=null;S.pending=null;S.lastCompleted=null;S.seed=1337;
+ if(resetQueue){S.queue=[];S.qpos=0}
+ clearDecision();
+}
+function rebuild(){clearSim(true);render()}
+function rnd(){S.seed=(S.seed*1664525+1013904223)>>>0;return S.seed/4294967296}
+function parse(raw){
+ raw=raw.trim();let v;
+ if(/^0x[0-9a-f]+$/i.test(raw))v=parseInt(raw,16);
+ else if(/^[0-9]+$/.test(raw))v=Number(raw);
+ else return {err:"Use 0x... hexadecimal or decimal digits."};
+ const max=2**S.cfg.addrBits;
+ if(!Number.isSafeInteger(v)||v<0||v>=max)return {err:`Address must be between 0x0 and 0x${(max-1).toString(16).toUpperCase()}.`};
+ return {v};
+}
+function decode(a){
+ const g=geomRaw(),block=Math.floor(a/S.cfg.lineSize),off=a%S.cfg.lineSize,
+       idx=g.sets===1?0:block%g.sets,tag=Math.floor(block/g.sets);
+ return {a,off,idx,tag,block,start:block*S.cfg.lineSize,end:block*S.cfg.lineSize+S.cfg.lineSize-1};
+}
+function hex(n,w=0){return"0x"+n.toString(16).toUpperCase().padStart(w,"0")}
+function dataFor(block){
+ const out=[],base=block*S.cfg.lineSize;
+ for(let i=0;i<Math.min(8,S.cfg.lineSize);i++)out.push(((base+i)*37+13)&255);
+ return out.map(x=>x.toString(16).toUpperCase().padStart(2,"0")).join(" ");
+}
+function victim(lines){
+ const free=lines.findIndex(l=>!l.valid);
+ if(free>=0)return free;
+ if(S.cfg.policy==="random")return Math.floor(rnd()*lines.length);
+ if(S.cfg.policy==="fifo")return lines.reduce((b,l,i)=>l.inserted<lines[b].inserted?i:b,0);
+ return lines.reduce((b,l,i)=>l.age>lines[b].age?i:b,0);
+}
+function touch(lines,w){lines.forEach((l,i)=>{if(l.valid&&i!==w)l.age++});lines[w].age=0}
+
+function makePending(addr){
+ const d=decode(addr);
+ return {id:S.history.length+1,hex:hex(addr,Math.ceil(S.cfg.addrBits/4)),d,checkedWays:[],hitWay:-1,
+   victimWay:-1,evicted:null,kind:null,stage:1};
+}
+function beginSingle(){
+ stop();if(S.pending)return;if(configError())return;
+ const p=parse($("addr").value);$("addr").setAttribute("aria-invalid",String(!!p.err));$("addrErr").textContent=p.err||"";
+ if(p.err)return;
+ S.queue=[p.v];S.qpos=0;S.lastCompleted=null;$("presetNote").textContent="Single access loaded. Step through the lookup.";
+ beginNextAccess();
+}
+function beginNextAccess(){
+ if(S.pending||S.qpos>=S.queue.length){updateButtons();return}
+ S.pending=makePending(S.queue[S.qpos++]);S.selected=null;S.line=null;render();
+}
+function commitHistory(){
+ const p=S.pending;
+ const rec={id:p.id,hex:p.hex,d:p.d,kind:p.kind,way:p.kind==="HIT"?p.hitWay:p.victimWay,
+   ev:p.evicted?{...p.evicted}:null};
+ S.history.push(rec);S.selected=rec.id;S.line={set:p.d.idx,way:rec.way};return rec;
+}
+function finishAccess(){
+ const p=S.pending,rec=S.history.find(r=>r.id===p.id);
+ S.lastCompleted={...rec,final:"CPU RETURN"};
+ S.pending=null;
+ $("headline").textContent="Access complete";
+ $("status").textContent=rec.kind;$("status").className="status "+(rec.kind==="HIT"?"hit":"miss");
+ $("count").textContent=`access #${rec.id}`;
+ if(S.running&&S.qpos>=S.queue.length)stop();
+ render();
+}
+function executeStage(){
+ const p=S.pending;if(!p)return;
+
+ if(p.stage===1){
+   p.stage=2;
+ }
+ else if(p.stage===2){
+   p.checkedWays=Array.from({length:geomRaw().ways},(_,i)=>i);
+   p.hitWay=S.cache[p.d.idx].findIndex(l=>l.valid&&l.tag===p.d.tag);
+   p.stage=3;
+ }
+ else if(p.stage===3){
+   p.kind=p.hitWay>=0?"HIT":"MISS";
+   if(p.kind==="MISS"){
+     p.victimWay=victim(S.cache[p.d.idx]);
+     const v=S.cache[p.d.idx][p.victimWay];
+     if(v.valid)p.evicted={way:p.victimWay,tag:v.tag,block:v.block};
+   }
+   commitHistory();
+   p.stage=4;
+ }
+ else if(p.stage===4){
+   if(p.kind==="HIT"){
+     finishAccess();
+     return;
+   }
+   p.stage=5;
+ }
+ else if(p.stage===5){
+   if(p.evicted){
+     const w=p.victimWay;
+     S.cache[p.d.idx][w]={valid:false,tag:null,block:null,data:"",age:0,inserted:0,way:w};
+   }
+   p.stage=6;
+ }
+ else if(p.stage===6){
+   p.stage=7;
+ }
+ else if(p.stage===7){
+   const w=p.victimWay>=0?p.victimWay:S.cache[p.d.idx].findIndex(l=>!l.valid);
+   S.cache[p.d.idx][w]={valid:true,tag:p.d.tag,block:p.d.block,data:dataFor(p.d.block),age:0,inserted:p.id,way:w};
+   touch(S.cache[p.d.idx],w);p.victimWay=w;
+   finishAccess();
+   return;
+ }
+ render();
+}
+function step(){
+ if(configError())return;
+ if(!S.pending){
+   if(S.queue.length&&S.qpos<S.queue.length)beginNextAccess();else beginSingle();
+   return;
+ }
+ executeStage();
+}
+function run(){
+ if(S.running)return;
+ if(!S.pending&&(!S.queue.length||S.qpos>=S.queue.length))return;
+ S.running=true;$("run").textContent="Stop";$("step").disabled=true;autoTick();
+}
+function autoTick(){
+ if(!S.running)return;
+ if(!S.pending){if(S.qpos<S.queue.length)beginNextAccess();else{stop();return}}
+ executeStage();
+ if(S.running)setTimeout(autoTick,260);
+}
+function stop(){clearTimeout(S.timer);S.timer=null;S.running=false;$("run").textContent="Run";updateButtons()}
+
+function loadPreset(name){
+ stop();const g=geom();if(!g)return;
+ const spaceBlocks=(2**S.cfg.addrBits)/S.cfg.lineSize;
+ if(name==="conflict"&&(g.sets<2||g.lines>=spaceBlocks)){
+   S.queue=[];S.qpos=0;clearSim(true);$("presetNote").textContent="Conflict misses are unavailable for this configuration.";render();return;
+ }
+ if(name==="capacity"&&g.lines>=spaceBlocks){
+   S.queue=[];S.qpos=0;clearSim(true);$("presetNote").textContent="Capacity misses are unavailable for this configuration.";render();return;
+ }
+ S.queue=presets[name]();S.qpos=0;clearSim(false);
+ if(S.queue.length)$("addr").value=hex(S.queue[0],Math.ceil(S.cfg.addrBits/4));
+ $("headline").textContent=name[0].toUpperCase()+name.slice(1)+" pattern ready";
+ $("status").textContent=`0 / ${S.queue.length}`;$("status").className="status";
+ $("presetNote").textContent="Step through one access at a time, or Run the sequence.";
+ render();
+}
+
+function currentModel(){
+ const p=S.pending,c=S.lastCompleted;
+ if(c){
+   const base=c.ev
+     ? [["ADDRESS","done"],["CACHE SET",`Set ${c.d.idx}`],["TAG COMPARISON",`${geomRaw().ways} ways`],["REPLACEMENT",`Way ${c.way}`],
+        ["EVICT",`Way ${c.way}`],["MEMORY ACCESS","read block"],["LINE TRANSFER",`${S.cfg.lineSize} B`],["INSTALL",`Way ${c.way}`],["CPU RETURN","data"]]
+     : c.kind==="HIT"
+       ? [["ADDRESS","done"],["CACHE SET",`Set ${c.d.idx}`],["TAG COMPARISON",`tag ${hex(c.d.tag)}`],["HIT",`Way ${c.way}`],["CPU RETURN","data"]]
+       : [["ADDRESS","done"],["CACHE SET",`Set ${c.d.idx}`],["TAG COMPARISON",`${geomRaw().ways} ways`],["MISS","no match"],
+          ["MEMORY ACCESS","read block"],["LINE TRANSFER",`${S.cfg.lineSize} B`],["INSTALL",`Way ${c.way}`],["CPU RETURN","data"]];
+   return base;
+ }
+ if(!p)return[["ADDRESS","request"],["CACHE SET","select"],["TAG COMPARISON","compare"],["HIT / MISS","resolve"]];
+ if(p.stage<=3)return[["ADDRESS","request"],["CACHE SET",`Set ${p.d.idx}`],["TAG COMPARISON",`${geomRaw().ways} ways`],["HIT / MISS","resolve"]];
+ if(p.kind==="HIT")return[["ADDRESS","done"],["CACHE SET",`Set ${p.d.idx}`],["TAG COMPARISON",`tag ${hex(p.d.tag)}`],["HIT",`Way ${p.hitWay}`],["CPU RETURN","data"]];
+ if(p.evicted)return[["ADDRESS","done"],["CACHE SET",`Set ${p.d.idx}`],["TAG COMPARISON",`${geomRaw().ways} ways`],["REPLACEMENT",`Way ${p.victimWay}`],["EVICT",`Way ${p.victimWay}`],
+   ["MEMORY ACCESS","read block"],["LINE TRANSFER",`${S.cfg.lineSize} B`],["INSTALL",`Way ${p.victimWay}`],["CPU RETURN","data"]];
+ return[["ADDRESS","done"],["CACHE SET",`Set ${p.d.idx}`],["TAG COMPARISON",`${geomRaw().ways} ways`],["MISS","no match"],
+   ["MEMORY ACCESS","read block"],["LINE TRANSFER",`${S.cfg.lineSize} B`],["INSTALL",`Way ${p.victimWay}`],["CPU RETURN","data"]];
+}
+function stageDescriptor(){
+ const p=S.pending,c=S.lastCompleted;
+ if(c)return{label:"CPU RETURN",short:"Access complete",detail:`${c.hex} resolved as ${c.kind}. The requested data reached the CPU; the cache now shows the final state.`};
+ if(!p)return{label:"READY",short:"Ready",detail:"Start an access to begin."};
+ if(p.stage===1)return{label:"ADDRESS",short:`Request ${p.hex}`,detail:`CPU presents ${p.hex} to the cache.`};
+ if(p.stage===2)return{label:"CACHE SET",short:`Select Set ${p.d.idx}`,detail:`Block ${p.d.block} maps to Set ${p.d.idx}.`};
+ if(p.stage===3)return{label:"TAG COMPARISON",short:`Check ${geomRaw().ways} ways`,detail:`Compare requested tag ${hex(p.d.tag)} against every valid line in Set ${p.d.idx}.`};
+ if(p.stage===4&&p.kind==="HIT")return{label:"HIT",short:`Way ${p.hitWay} matches`,detail:`Tag ${hex(p.d.tag)} matches Way ${p.hitWay}. No memory access is needed.`};
+ if(p.stage===4&&p.evicted)return{label:"REPLACEMENT",short:`Way ${p.victimWay} selected`,detail:`Set ${p.d.idx} has no free way. ${S.cfg.policy.toUpperCase()} selects Way ${p.victimWay}.`};
+ if(p.stage===4)return{label:"MISS",short:`Use Way ${p.victimWay}`,detail:`No tag matches in Set ${p.d.idx}. A free way is available; no eviction is needed.`};
+ if(p.stage===5&&p.evicted)return{label:"EVICT",short:`Remove Way ${p.victimWay}`,detail:`Old block ${hex(p.evicted.block*S.cfg.lineSize)} is removed from Set ${p.d.idx}.`};
+ if(!p.evicted&&p.stage===5)return{label:"MEMORY ACCESS",short:"Read backing memory",detail:`Read block ${hex(p.d.start)} – ${hex(p.d.end)} from main memory.`};
+ if(p.evicted&&p.stage===6)return{label:"MEMORY ACCESS",short:"Read backing memory",detail:`Read block ${hex(p.d.start)} – ${hex(p.d.end)} from main memory.`};
+ if(!p.evicted&&p.stage===6)return{label:"LINE TRANSFER",short:`Transfer ${S.cfg.lineSize} B`,detail:`Move the complete cache line ${hex(p.d.start)} – ${hex(p.d.end)} into the selected cache way.`};
+ if(p.evicted&&p.stage===7)return{label:"LINE TRANSFER",short:`Transfer ${S.cfg.lineSize} B`,detail:`Move the complete cache line ${hex(p.d.start)} – ${hex(p.d.end)} into the selected cache way.`};
+ if(!p.evicted&&p.stage===7)return{label:"INSTALL",short:`Install Way ${p.victimWay}`,detail:`Install block ${hex(p.d.start)} – ${hex(p.d.end)} in Set ${p.d.idx}.`};
+ if(p.evicted&&p.stage===8)return{label:"INSTALL",short:`Install Way ${p.victimWay}`,detail:`Install block ${hex(p.d.start)} – ${hex(p.d.end)} in Set ${p.d.idx}.`};
+ return{label:"READY",short:"Ready",detail:""};
+}
+function nextAction(){
+ const p=S.pending,c=S.lastCompleted;
+ if(c)return S.qpos<S.queue.length?"Step → ADDRESS":"Access Memory";
+ if(!p)return S.queue.length&&S.qpos<S.queue.length?"Step → ADDRESS":"Access Memory";
+ if(p.stage===1)return"Step → CACHE SET";
+ if(p.stage===2)return"Step → TAG COMPARISON";
+ if(p.stage===3)return"Step → HIT / MISS";
+ if(p.stage===4&&p.kind==="HIT")return"Step → CPU RETURN";
+ if(p.stage===4)return p.evicted?"Step → EVICT":"Step → MEMORY ACCESS";
+ if(p.evicted){
+   if(p.stage===5)return"Step → MEMORY ACCESS";
+   if(p.stage===6)return"Step → CACHE LINE TRANSFER";
+   if(p.stage===7)return"Step → INSTALL";
+ }else{
+   if(p.stage===5)return"Step → CACHE LINE TRANSFER";
+   if(p.stage===6)return"Step → INSTALL";
+ }
+ return"Step → CPU RETURN";
+}
+function currentTransfer(){
+ const p=S.pending,c=S.lastCompleted;
+ if(c)return"Cache → CPU";
+ if(!p)return"CPU → Cache";
+ if(p.stage<=3)return"Cache lookup";
+ if(p.stage===4&&p.kind==="HIT")return"Cache → CPU";
+ if(p.stage===4)return"No transfer";
+ if(p.stage===5&&p.evicted)return"Cache internal";
+ if(p.stage===5)return"Cache → Main Memory";
+ if(p.stage===6)return"Cache → Main Memory";
+ if(p.stage===7)return"Main Memory → Cache";
+ return"Cache lookup";
+}
+function currentTransferNote(){
+ const p=S.pending,c=S.lastCompleted;
+ if(c)return`Requested byte at offset ${hex(c.d.off)} was returned after the cache decision.`;
+ if(!p)return"No access yet.";
+ if(p.stage===1)return`Address ${p.hex}; the request enters the cache lookup.`;
+ if(p.stage===2)return`Index ${p.d.idx} selects Set ${p.d.idx}; no data moves yet.`;
+ if(p.stage===3)return`Checking ${p.checkedWays.length} way${p.checkedWays.length===1?"":"s"} in Set ${p.d.idx}.`;
+ if(p.stage===4&&p.kind==="HIT")return`Tag ${hex(p.d.tag)} matches Way ${p.hitWay}; no memory access is needed.`;
+ if(p.stage===4&&p.evicted)return`No free way; replacement policy selects Way ${p.victimWay}.`;
+ if(p.stage===4)return`No tag match; free Way ${p.victimWay} is the fill target.`;
+ if(p.stage===5&&p.evicted)return`Old block ${hex(p.evicted.block*S.cfg.lineSize)} is removed before the fill.`;
+ if(!p.evicted&&p.stage===5)return`Main memory is read for block ${hex(p.d.start)} – ${hex(p.d.end)}.`;
+ if(p.evicted&&p.stage===6)return`Main memory is read for block ${hex(p.d.start)} – ${hex(p.d.end)}.`;
+ if(!p.evicted&&p.stage===6)return`The complete ${S.cfg.lineSize}-byte cache line crosses from memory into the cache.`;
+ if(p.evicted&&p.stage===7)return`The complete ${S.cfg.lineSize}-byte cache line crosses from memory into the cache.`;
+ if(!p.evicted&&p.stage===7)return`The fetched line is installed in Set ${p.d.idx}, Way ${p.victimWay}.`;
+ if(p.evicted&&p.stage===8)return`The fetched line is installed in Set ${p.d.idx}, Way ${p.victimWay}.`;
+ return"";
+}
+function renderDecision(){
+ const d=stageDescriptor(),p=S.pending,c=S.lastCompleted;
+ $("headline").textContent=d.short;$("dtitle").textContent=d.label;$("dcopy").textContent=d.detail;
+ $("status").textContent=c?c.kind:(p?d.label:"IDLE");
+ $("status").className="status "+((c?.kind==="HIT"||p?.kind==="HIT")?"hit":((c?.kind==="MISS"||p?.kind==="MISS")?"miss":""));
+ $("count").textContent=c?`access #${c.id}`:p?`access #${p.id}`:"idle";
+ $("transfer").textContent=currentTransfer();$("transferNote").textContent=currentTransferNote();
+ const x=p||c;if(!x){$("kv").innerHTML="";return}
+ $("kv").innerHTML=[
+   ["address",x.hex],["tag",hex(x.d.tag)],["index",geomRaw().indexBits?String(x.d.idx):"—"],["offset",hex(x.d.off)],
+   ["set",String(x.d.idx)],["ways checked",p?(p.checkedWays.length?p.checkedWays.map(w=>`Way ${w}`).join(", "):"not checked yet"):`${geomRaw().ways} ways`],
+   ["result",x.kind||"pending"],["selected line",x.way!=null?`Way ${x.way}`:(p.victimWay>=0?`Way ${p.victimWay}`:"not selected")]
+ ].map(v=>`<div class="key">${v[0]}</div><div class="val">${v[1]}</div>`).join("");
+}
+function renderSteps(){
+ const box=$("steps");box.innerHTML="";const model=currentModel(),d=stageDescriptor(),current=model.findIndex(x=>x[0]===d.label);
+ model.forEach((x,i)=>{
+   const el=document.createElement("div");el.className="step";
+   if(i<current)el.classList.add("done");if(i===current)el.classList.add("active","current");
+   if(x[0]==="HIT"&&(S.pending?.kind==="HIT"||S.lastCompleted?.kind==="HIT"))el.classList.add("result-hit");
+   if(x[0]==="MISS"&&S.pending?.kind==="MISS"&&!S.pending.evicted)el.classList.add("result-miss");
+   if((x[0]==="REPLACEMENT"||x[0]==="EVICT")&&(S.pending?.evicted||S.lastCompleted?.ev))el.classList.add("result-evict");
+   el.innerHTML=`<b>${String(i+1).padStart(2,"0")}</b><strong>${x[0]}</strong><span>${x[1]}</span>`;
+   box.appendChild(el);
+ });
+}
+function renderPhysicalState(){
+ ["cpuNode","cacheNode","memoryNode"].forEach(id=>$(id).classList.remove("physical-active","physical-hit","physical-miss","physical-evict"));
+ document.querySelectorAll("#cache .linebtn").forEach(x=>x.classList.remove("miss","evict"));
+ const p=S.pending,c=S.lastCompleted,x=p||c;if(!x)return;
+ if(c){$("cpuNode").classList.add("physical-hit");return}
+ if(p.stage===1)$("cpuNode").classList.add("physical-active");
+ else if(p.stage===2||p.stage===3)$("cacheNode").classList.add("physical-active");
+ else if(p.stage===4){
+   if(p.kind==="HIT")$("cacheNode").classList.add("physical-hit");
+   else if(p.evicted)$("cacheNode").classList.add("physical-evict");
+   else $("cacheNode").classList.add("physical-miss");
+ } else if(p.stage===5&&p.evicted)$("cacheNode").classList.add("physical-evict");
+ else if(!p.evicted&&p.stage===5)$("memoryNode").classList.add("physical-miss");
+ else if(p.evicted&&p.stage===6)$("memoryNode").classList.add("physical-miss");
+ else if(!p.evicted&&p.stage===6){$("memoryNode").classList.add("physical-miss");$("cacheNode").classList.add("physical-active")}
+ else if(p.evicted&&p.stage===7){$("memoryNode").classList.add("physical-miss");$("cacheNode").classList.add("physical-active")}
+ else if(!p.evicted&&p.stage===7)$("cacheNode").classList.add("physical-active");
+ if(p.evicted&&p.stage===8)$("cacheNode").classList.add("physical-active");
+}
+function renderDecoder(){
+ const p=parse($("addr").value);if(p.err||!geom()){$("decbar").innerHTML="";$("meta").innerHTML="";return}
+ const d=decode(p.v),g=geomRaw();
+ $("decbar").style.gridTemplateColumns=`${Math.max(g.tagBits,1)}fr ${Math.max(g.indexBits,1)}fr ${Math.max(g.offsetBits,1)}fr`;
+ $("decbar").innerHTML=`<div class="dec tag"><strong>TAG · ${g.tagBits} bits</strong><span>${hex(d.tag)}</span></div>
+ <div class="dec idx"><strong>INDEX · ${g.indexBits} bits</strong><span>${g.sets===1?"—":d.idx}</span></div>
+ <div class="dec off"><strong>OFFSET · ${g.offsetBits} bits</strong><span>${hex(d.off)}</span></div>`;
+ $("meta").innerHTML=[["binary",d.a.toString(2).padStart(S.cfg.addrBits,"0")],["set",d.idx],["memory block",hex(d.start)],["line range",`${hex(d.start)} – ${hex(d.end)}`]]
+ .map(x=>`<div><span class="k">${x[0]}</span><span class="v">${x[1]}</span></div>`).join("");
+}
+function renderCache(){
+ const g=geom();if(!g){$("cache").innerHTML="";return}
+ const t=document.createElement("table"),h=document.createElement("thead"),r=document.createElement("tr");
+ r.innerHTML="<th>Set</th>"+Array.from({length:g.ways},(_,w)=>`<th>Way ${w}</th>`).join("");h.appendChild(r);t.appendChild(h);
+ const b=document.createElement("tbody"),p=S.pending;
+ S.cache.forEach((set,wset)=>{
+   const tr=document.createElement("tr");if(p?.d.idx===wset||(S.lastCompleted?.d.idx===wset&&S.lastCompleted?.id===S.selected))tr.className="focus";
+   const td=document.createElement("td");td.textContent=wset;tr.appendChild(td);
+   set.forEach((l,w)=>{
+     const td=document.createElement("td"),btn=document.createElement("button");
+     btn.className="linebtn"+(S.line?.set===wset&&S.line?.way===w?" sel":"");
+     if(p?.d.idx===wset&&p.stage===3){
+       btn.classList.add("miss");
+       if(p.hitWay===w&&p.hitWay>=0)btn.classList.add("match");
+     }
+     if(p?.kind==="HIT"&&p.stage===4&&p.hitWay===w&&p.d.idx===wset)btn.classList.add("match");
+     if(p?.kind==="MISS"&&p.stage===4&&p.d.idx===wset&&p.victimWay===w)btn.classList.add("miss");
+     if(p?.evicted&&p.d.idx===wset&&p.victimWay===w&&p.stage===4)btn.classList.add("evict");
+     if(p?.evicted&&p.d.idx===wset&&p.victimWay===w&&p.stage===5)btn.classList.add("evict");
+     btn.disabled=!!p;
+     btn.innerHTML=l.valid
+       ?`<div class="line-top"><span>V=1</span><b>${hex(l.tag)}</b></div><div class="data">preview: ${l.data}</div><div class="data">block ${hex(l.block*S.cfg.lineSize)}</div>`
+       :`<div class="line-top"><span class="invalid">V=0</span><span class="invalid">invalid</span></div><div class="data">—</div>`;
+     btn.addEventListener("click",()=>{
+       if(S.pending)return;
+       S.line={set:wset,way:w};const x=S.cache[wset][w];
+       $("lineCopy").textContent=x.valid?"Selected valid cache line.":"Selected invalid cache line.";
+       $("lineKV").innerHTML=[["set",wset],["way",w],["valid",x.valid?1:0],["tag",x.valid?hex(x.tag):"—"],["block",x.valid?hex(x.block*S.cfg.lineSize):"—"],["data",x.valid?x.data:"—"]]
+       .map(y=>`<div class="key">${y[0]}</div><div class="val">${y[1]}</div>`).join("");
+       renderCache();
+     });
+     td.appendChild(btn);tr.appendChild(td);
+   });
+   b.appendChild(tr);
+ });
+ t.appendChild(b);$("cache").replaceChildren(t);
+}
+function renderHistory(){
+ const log=$("log");if(!S.history.length){
+   log.innerHTML='<div class="logrow" style="color:#8a948d"><span>—</span><span>waiting</span><span>—</span><span>Run or Step an access.</span><span>—</span></div>';return
+ }
+ log.innerHTML="";S.history.slice().reverse().forEach(r=>{
+   const b=document.createElement("div");b.className="logrow";
+   b.innerHTML=`<span>#${String(r.id).padStart(2,"0")}</span><span>${r.hex}</span><span><span class="badge ${r.kind==="HIT"?"b-hit":"b-miss"}">${r.kind}</span></span><span>set ${r.d.idx} · way ${r.way}${r.ev?` · evict ${hex(r.ev.block*S.cfg.lineSize)}`:""}</span><span>${S.pending?.id===r.id?"in progress":(r.kind==="HIT"?"resident":"line fill")}</span>`;
+   log.appendChild(b);
+ });
+}
+function renderLineInfo(){
+ if(!S.line)return;const x=S.cache[S.line.set]?.[S.line.way];if(!x)return;
+ $("lineKV").innerHTML=[["set",S.line.set],["way",S.line.way],["valid",x.valid?1:0],["tag",x.valid?hex(x.tag):"—"],["block",x.valid?hex(x.block*S.cfg.lineSize):"—"],["data",x.valid?x.data:"—"]]
+ .map(y=>`<div class="key">${y[0]}</div><div class="val">${y[1]}</div>`).join("");
+}
+function updateButtons(){
+ const active=!!S.pending||S.running;
+ $("access").disabled=active;
+ $("step").disabled=S.running||(S.pending===null&&S.queue.length>0&&S.qpos>=S.queue.length);
+ $("run").disabled=S.running?false:(!S.pending&&!S.queue.length||(!S.pending&&S.queue.length&&S.qpos>=S.queue.length));
+ ["addrBits","cacheSize","lineSize","policy"].forEach(id=>$(id).disabled=active);
+ document.querySelectorAll("#assoc button").forEach(b=>b.disabled=active);
+ const g=geom(),spaceBlocks=g?(2**S.cfg.addrBits)/S.cfg.lineSize:0;
+ const cb=document.querySelector('[data-p="conflict"]'),cap=document.querySelector('[data-p="capacity"]');
+ if(cb)cb.disabled=active||!g||g.sets<2||g.lines>=spaceBlocks;
+ if(cap)cap.disabled=active||!g||g.lines>=spaceBlocks;
+ $("step").textContent=nextAction();
+}
+function render(){
+ const g=geom();
+ if(g){
+   const vals=[g.lines,g.sets,g.offsetBits,g.indexBits,g.tagBits,g.ways];
+   ["lines","sets","obits","ibits","tbits","ways"].forEach((id,i)=>$(id).textContent=vals[i]);
+   $("geo").textContent=`${S.cfg.cacheSize} B · ${S.cfg.lineSize} B lines · ${S.cfg.assoc==="fa"?"fully associative":S.cfg.assoc+"-way"}`;
+   renderDecoder();renderCache();renderLineInfo();
+ }else{
+   ["lines","sets","obits","ibits","tbits","ways"].forEach(id=>$(id).textContent="—");
+   $("geo").textContent="invalid configuration";$("cache").innerHTML="";$("decbar").innerHTML="";$("meta").innerHTML="";
+ }
+ const hits=S.history.filter(r=>r.kind==="HIT").length,miss=S.history.length-hits,ev=S.history.filter(r=>r.ev).length;
+ $("sa").textContent=S.history.length;$("sh").textContent=hits;$("sm").textContent=miss;$("se").textContent=ev;$("sr").textContent=S.history.length?Math.round(hits/S.history.length*100)+"%":"0%";
+ $("histCount").textContent=S.queue.length?`${S.history.length}/${S.queue.length} resolved`:`${S.history.length} accesses`;
+ renderHistory();renderDecision();renderSteps();renderPhysicalState();updateButtons();
+}
+function reset(){
+ stop();S.cfg={addrBits:16,cacheSize:256,lineSize:16,assoc:2,policy:"lru"};
+ $("addrBits").value=16;$("cacheSize").value=256;$("lineSize").value=16;$("policy").value="lru";
+ document.querySelectorAll("#assoc button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.a==="2"));
+ $("addr").value="0x1000";$("addrErr").textContent="";$("presetNote").textContent="Load a sequence, then Step or Run.";
+ clearSim(true);render();
+}
+$("addrBits").addEventListener("change",()=>{S.cfg.addrBits=+$("addrBits").value;rebuild()});
+$("cacheSize").addEventListener("change",()=>{S.cfg.cacheSize=+$("cacheSize").value;rebuild()});
+$("lineSize").addEventListener("change",()=>{S.cfg.lineSize=+$("lineSize").value;rebuild()});
+$("policy").addEventListener("change",()=>{S.cfg.policy=$("policy").value;rebuild()});
+document.querySelectorAll("#assoc button").forEach(b=>b.addEventListener("click",()=>{
+ S.cfg.assoc=b.dataset.a==="fa"?"fa":+b.dataset.a;document.querySelectorAll("#assoc button").forEach(x=>x.setAttribute("aria-pressed",x===b));rebuild();
+}));
+$("addr").addEventListener("input",()=>{
+ const p=parse($("addr").value);$("addr").setAttribute("aria-invalid",String(!!p.err));$("addrErr").textContent=p.err||"";
+ renderDecoder();if(!S.pending){S.lastCompleted=null;clearDecision();updateButtons()}
+});
+$("access").addEventListener("click",beginSingle);
+$("step").addEventListener("click",step);
+$("run").addEventListener("click",()=>S.running?stop():run());
+document.querySelectorAll("[data-p]").forEach(b=>b.addEventListener("click",()=>loadPreset(b.dataset.p)));
+$("reset").addEventListener("click",reset);
+$("about").addEventListener("click",()=>$("modal").classList.add("show"));
+$("close").addEventListener("click",()=>$("modal").classList.remove("show"));
+$("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.remove("show")});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")$("modal").classList.remove("show")});
+rebuild();
+})();
+</script>
+</body>
+</html>
